@@ -16,7 +16,7 @@ use hifive1::{Led, pin, pins};
 use hifive1::sprintln;
 
 // switches led according to supplied status returning the new state back
-fn toggle_led(led: &mut Led, status: bool) -> bool {
+fn toggle_led(led: &mut dyn Led, status: bool) -> bool {
     match status {
         true => led.on(),
         false => led.off(),
@@ -42,7 +42,7 @@ fn main() -> ! {
     let mut tleds = hifive1::rgb(rgb_pins.0, rgb_pins.1, rgb_pins.2);
 
     // get leds as the Led trait in an array so we can index them
-    let ileds: [&mut Led; 3] = [&mut tleds.0, &mut tleds.1, &mut tleds.2];
+    let ileds: [&mut dyn Led; 3] = [&mut tleds.0, &mut tleds.1, &mut tleds.2];
 
     // get the local interrupts struct
     let clint = dr.core_peripherals.clint;
