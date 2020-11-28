@@ -2,6 +2,11 @@
 
 > I copied this from the riscv-rust-quickstart template, highly recommmend the template. 
 
+For this project, I am just working off the template as a way to get my feet wet with some 
+risc-v rust, and step back into some lower level systems work. Don't expect anything to be
+working in here, but I will do my best. Honestly this is just on the internet so I don't lose
+my progress incase my OS dies or something.
+
 
 ## Dependencies
 
