@@ -45,10 +45,16 @@ impl Console {
         }
     }
 
+    /// Get current character under cursor.
+    fn curr_char(&self) -> char {
+        let c = self.buffer[self.line][self.cursor] as char;
+        c
+    }
+
     /// Helper to increment line index without modulo.
     fn inc_cursor_idx(&mut self) {
         match self.cursor {
-            MAX_CURSOR => self.write_newline(),
+            MAX_CURSOR => {},
             _ => self.cursor += 1,
         }
     }
@@ -91,6 +97,9 @@ impl Console {
         sprint!("{}", c);
         self.buffer[self.line][self.cursor] =  c as u8;
         self.inc_cursor_idx();
+        if self.cursor == MAX_CURSOR {
+            self.write_newline();
+        }
     }
 
     /// Write a backspace character 
@@ -128,30 +137,27 @@ impl Console {
             self.cursor += 1;
         }
     }
-
-    fn do_arrow_up(&mut self) {
-        self.clear_console_line();
-        self.dec_line_idx();
-        self.write_line();
-    }
-
-    fn do_arrow_down(&mut self) {
-        self.clear_console_line();
-        self.inc_line_idx();
-        self.write_line();
-    }
     
     fn handle_arrow(&mut self, c: u8) {
         match get_arrow(c) {
-            Ok(Arrow::Up) => self.do_arrow_up(),
-            Ok(Arrow::Down) => self.do_arrow_down(),
+            Ok(Arrow::Up) => {
+                self.clear_console_line();
+                self.dec_line_idx();
+                self.write_line();                
+            },
+            Ok(Arrow::Down) =>{
+                self.clear_console_line();
+                self.inc_line_idx();
+                self.write_line();
+            },
             Ok(Arrow::Right) => {
-                self.write_character('=');
-                self.write_character('>');
+                // Last thing to support is insertion.
+                sprint!{"{}", self.curr_char()};
+                self.inc_cursor_idx();
             },
             Ok(Arrow::Left) => {
-                self.write_character('<');
-                self.write_character('=');
+                self.dec_cursor_idx();
+                sprint!{"{}", 8 as char};
             },
             Err(_) => {},
         }
