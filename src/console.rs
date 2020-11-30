@@ -1,4 +1,3 @@
-
 use hifive1::sprint;
 
 const LINE_LEN: usize = 128;
@@ -7,7 +6,7 @@ const HISTORY_LEN: usize = 16;
 const MAX_HISTORY: usize = HISTORY_LEN - 1;
 pub struct Console {
     buffer: [[u8; LINE_LEN]; HISTORY_LEN],
-    line : usize,
+    line: usize,
     cursor: usize,
     mode: Mode,
 }
@@ -54,7 +53,7 @@ impl Console {
     /// Helper to increment line index without modulo.
     fn inc_cursor_idx(&mut self) {
         match self.cursor {
-            MAX_CURSOR => {},
+            MAX_CURSOR => {}
             _ => self.cursor += 1,
         }
     }
@@ -62,8 +61,8 @@ impl Console {
     /// Move cursor one back, won't move past 0.
     fn dec_cursor_idx(&mut self) {
         match self.cursor {
-            0 => {},
-            _ => self.cursor -= 1, 
+            0 => {}
+            _ => self.cursor -= 1,
         }
     }
 
@@ -95,71 +94,73 @@ impl Console {
     /// Write character into console and history
     fn write_character(&mut self, c: char) {
         sprint!("{}", c);
-        self.buffer[self.line][self.cursor] =  c as u8;
+        self.buffer[self.line][self.cursor] = c as u8;
         self.inc_cursor_idx();
         if self.cursor == MAX_CURSOR {
             self.write_newline();
         }
     }
 
-    /// Write a backspace character 
+    /// Write a backspace character
     fn write_backspace(&mut self) {
         let backspace = 8 as char;
-        sprint!{"{0} {0}", backspace}
+        sprint! {"{0} {0}", backspace}
         self.dec_cursor_idx();
         self.buffer[self.line][self.cursor] = 0;
     }
 
     fn write_newline(&mut self) {
         let newline = 10 as char;
-        sprint!{"{}", newline}
+        sprint! {"{}", newline}
         self.next_line();
     }
 
     fn clear_console_line(&mut self) {
-        sprint!{"\r"};
+        //sprint!{"\r"};
         for _ in 0..LINE_LEN {
-            sprint!{" "};
+            sprint! {" "};
         }
-        sprint!{"\r"};
+        sprint! {"\r"};
     }
 
     /// Writes entire line to console, setting cursor to next character to input
-    /// into. 
+    /// into.
     fn write_line(&mut self) {
         self.cursor = 0;
-        let iter  =self.buffer[self.line]
-            .iter()
-            .take_while(|c| **c != 0);
+        let iter = self.buffer[self.line].iter().take_while(|c| **c != 0);
 
         for c in iter {
-            sprint!{"{}", *c as char};
+            sprint! {"{}", *c as char};
             self.cursor += 1;
         }
     }
-    
+
     fn handle_arrow(&mut self, c: u8) {
         match get_arrow(c) {
             Ok(Arrow::Up) => {
+                sprint! {"G"};
                 self.clear_console_line();
+                sprint! {"T"};
                 self.dec_line_idx();
-                self.write_line();                
-            },
-            Ok(Arrow::Down) =>{
+                sprint! {"E"};
+                self.write_line();
+                sprint! {"S"};
+            }
+            Ok(Arrow::Down) => {
                 self.clear_console_line();
                 self.inc_line_idx();
                 self.write_line();
-            },
+            }
             Ok(Arrow::Right) => {
                 // Last thing to support is insertion.
-                sprint!{"{}", self.curr_char()};
+                sprint! {"{}", self.curr_char()};
                 self.inc_cursor_idx();
-            },
+            }
             Ok(Arrow::Left) => {
                 self.dec_cursor_idx();
-                sprint!{"{}", 8 as char};
-            },
-            Err(_) => {},
+                sprint! {"{}", 8 as char};
+            }
+            Err(_) => {}
         }
     }
 
@@ -171,14 +172,13 @@ impl Console {
             (Mode::SeenArrowSecond, 0x41..=0x44) => {
                 self.handle_arrow(c);
                 self.mode = Mode::None;
-            },
+            }
 
             // Not Arrow, default to writing character
-            (Mode::SeenArrowFirst , _) | 
-            (Mode::SeenArrowSecond, _) => {
+            (Mode::SeenArrowFirst, _) | (Mode::SeenArrowSecond, _) => {
                 self.write_character(c as char);
                 self.mode = Mode::None;
-            },
+            }
 
             // Not Arrow mode
             (Mode::None, 127) => self.write_backspace(),

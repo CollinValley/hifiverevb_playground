@@ -3,15 +3,16 @@
 
 extern crate panic_halt;
 
-mod console;
 mod barometer;
+mod console;
+mod mpl311a2;
 
-use riscv_rt::entry;
+use hifive1::hal::delay::Delay;
+use hifive1::hal::i2c::{I2c, Speed};
 use hifive1::hal::prelude::*;
 use hifive1::hal::DeviceResources;
-use hifive1::{sprintln, pin};
-use hifive1::hal::i2c::{Speed, I2c};
-
+use hifive1::{pin, sprintln};
+use riscv_rt::entry;
 
 #[entry]
 fn main() -> ! {
@@ -27,47 +28,48 @@ fn main() -> ! {
         p.UART0,
         pin!(pins, uart0_tx),
         pin!(pins, uart0_rx),
-        115_200.bps(), 
-        clocks
+        115_200.bps(),
+        clocks,
     );
 
     // Configure I2C
     let sda = pin!(pins, i2c0_sda).into_iof0();
     let scl = pin!(pins, i2c0_scl).into_iof0();
-    let mut i2c = I2c::new(p.I2C0, sda, scl, Speed::Normal, clocks);
+    let i2c = I2c::new(p.I2C0, sda, scl, Speed::Normal, clocks);
 
     sprintln!("Welcome to RiscV!......");
     sprintln!("_______________________");
 
-
     // Create a new console.
     let mut console = console::Console::new();
-    let mut barometer = barometer::Barometer::new(
-        0x60, 
-        barometer::Mode::Poll, 
-        i2c
-    );
-    
+    let mut barometer = barometer::Barometer::new(barometer::Mode::Poll, i2c);
+
     if let Err(_) = barometer.initialize() {
         sprintln!("Error starting barometer");
+        loop {}
     }
+    sprintln!("Barometer started");
 
     loop {
         // Handle console input
-        if let Ok(c) = rx.read(){
+        /*
+        if let Ok(c) = rx.read() {
             console.handle_character(c);
         }
+        */
 
-        // Handle barometer
-        if !barometer.ready() {
-            let data = barometer.get_data();
-            if data.pressure.is_some() {
-                sprintln!("Got pressure: {}", data.pressure.unwrap());
+        match barometer.get_pressure() {
+            Ok(pressure) => {
+                sprintln! {"Got pressure value: {}Pa ", pressure };
             }
-            if data.temperature.is_some() {
-                sprintln!("Got temperature: {}", data.temperature.unwrap());
+            Err(_) => sprintln!("Error getting pressure value"),
+        };
+        match barometer.get_altitude() {
+            Ok(altitude) => {
+                sprintln! {"Got altitude value: {}m ", altitude };
             }
-        }
+            Err(_) => sprintln!("Error getting altitude value"),
+        };
+        Delay.delay_ms(2000u32);
     }
 }
-

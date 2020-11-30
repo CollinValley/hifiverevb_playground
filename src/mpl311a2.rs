@@ -1,4 +1,3 @@
-
 /// Constants and enums for the mpl311a2 altimeter.
 
 /// I2C address of the barometer.
@@ -23,6 +22,7 @@ pub enum Register {
     OutTempDeltaMSB = 0x0A,
     OutTempDeltaLSB = 0x0B,
     WhoAmI = 0x0C,
+    PtDataConfig = 0x13,
     InputBarMSB = 0x14,
     InputBarLSB = 0x15,
     ControlReg1 = 0x26,
@@ -45,7 +45,6 @@ pub enum StatusMasks {
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
 pub enum PtDataMasks {
-    PtDataCfg = 0x13,
     PtDataCfgTdefe = 0x01,
     PtDataCfgPdefe = 0x02,
     PtDataCfgDrem = 0x04,
