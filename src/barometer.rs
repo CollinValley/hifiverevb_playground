@@ -35,12 +35,12 @@ impl Barometer {
     pub fn initialize(&mut self) -> Result<(), ()> {
         // Check for correct whoami
         match self.read_reg(Register::WhoAmI) {
-            Some(0xC4) => {}
-            Some(c) => {
+            Ok(0xC4) => {}
+            Ok(c) => {
                 sprintln!("Error whoami value {:x} is no 0xC4", c);
                 return Err(());
             }
-            None => {
+            Err(_) => {
                 return Err(());
             }
         };
@@ -74,7 +74,7 @@ impl Barometer {
 
         // Wait device to finish reset.
         for _ in 0..timeout / 10 {
-            if let Some(c) = self.read_reg(Register::ControlReg1) {
+            if let Ok(c) = self.read_reg(Register::ControlReg1) {
                 // Poll Control register until software reset bit is set low again, indicating reset is complete.
                 if (c & ControlOneMasks::Reset as u8) == 0 {
                     sprintln!("Device reset");
@@ -97,17 +97,22 @@ impl Barometer {
 
     pub fn get_pressure(&mut self) -> Result<f32, ()> {
         // Wait for oneshot bit to be 0
-        self.wait_for_oneshot(100)?;
+        self.wait_for_oneshot(1000)?;
 
-        // Set control register, barometer mode.
-        let mut control_value = Oversample::Oversample4 as u8;
+        // Get current control value.
+        let mut control_value = self.read_reg(Register::ControlReg1)?;
+
+        // Set control register, barometer mode. (Disable altimeter bit)
+        control_value &= !(ControlOneMasks::Altitude as u8);
+
         self.write_reg(Register::ControlReg1, control_value)?;
+        Delay.delay_ms(100u32);
 
         // Set OneShot bit to get measurement.
         control_value |= ControlOneMasks::OneShot as u8;
         self.write_reg(Register::ControlReg1, control_value)?;
 
-        self.wait_for_data(StatusMasks::PressureDataReady, 100)?;
+        self.wait_for_data(StatusMasks::PressureDataReady, 1000)?;
 
         // Get data measurement, we request the MSB first and the fields are auto incrementing
         let mut pressure_buf = [0; 0x3];
@@ -137,17 +142,21 @@ impl Barometer {
 
     pub fn get_altitude(&mut self) -> Result<f32, ()> {
         // Wait for oneshot bit to be 0
-        self.wait_for_oneshot(100)?;
+        self.wait_for_oneshot(1000)?;
+
+        // Get current control value.
+        let mut control_value = self.read_reg(Register::ControlReg1)?;
 
         // Set control register, altimeter mode.
-        let mut control_value = Oversample::Oversample4 as u8 | ControlOneMasks::Altitude as u8;
+        control_value |= ControlOneMasks::Altitude as u8;
         self.write_reg(Register::ControlReg1, control_value)?;
+        Delay.delay_ms(100u32);
 
         // Set OneShot bit to get measurement.
         control_value |= ControlOneMasks::OneShot as u8;
         self.write_reg(Register::ControlReg1, control_value)?;
 
-        self.wait_for_data(StatusMasks::PressureDataReady, 100)?;
+        self.wait_for_data(StatusMasks::PressureDataReady, 1000)?;
 
         // Get data measurement, we request the MSB first and the fields are auto incrementing
         let mut pressure_buf = [0; 0x3];
@@ -162,7 +171,7 @@ impl Barometer {
 
         // Sensor data in Q16.4 format in Meters
         // Bits 4..=19 form integer part
-        // Bits 0..=3 form fracational part, hence the weird divide by 16.
+        // Bits 0..=3 form fractional part, hence the weird divide by 16.
         let pressure_sensor_data =
             // Bits 12..=19
             (pressure_buf[0] as u32) << 12
@@ -175,11 +184,47 @@ impl Barometer {
         Ok(altitude)
     }
 
+    pub fn get_temperature(&mut self) -> Result<f32, ()> {
+        // Wait for oneshot bit to be 0
+        self.wait_for_oneshot(1000)?;
+
+        // Get current control value, so we don't change alt/baro settings.
+        let mut control_value = self.read_reg(Register::ControlReg1)?;
+
+        // Set OneShot bit to get measurement.
+        control_value |= ControlOneMasks::OneShot as u8;
+        self.write_reg(Register::ControlReg1, control_value)?;
+
+        self.wait_for_data(StatusMasks::TempDataReady, 1000)?;
+
+        // Get data measurement, we request the MSB first and the fields are auto incrementing
+        let mut temperature_buf = [0; 0x2];
+        if let Err(e) =
+            self.i2c
+                .write_read(I2CAddress, &[Register::TempMSB as u8], &mut temperature_buf)
+        {
+            sprintln! {"Error reading pressure data: {:?}", e};
+            return Err(());
+        }
+
+        // Sensor data in Q8.4 format in Celsius
+        // Bits 4..=12 form integer part
+        // Bits 0..=3 form fractional part, hence the weird divide by 16.
+        let temperature_sensor_data =
+            // Bits 4..=11 
+            (temperature_buf[0] as u32) << 4
+            // Bits 0..=3 
+            | (temperature_buf[1] as u32) >> 4;
+        let temperature: f32 = (temperature_sensor_data as f32) / 16.0;
+
+        Ok(temperature)
+    }
+
     /// Poll status register on a loop until status data specifed by mask is ready.
     /// Timeout in MS, should be in incrememnts of 10.
     fn wait_for_data(&mut self, mask: StatusMasks, timeout: u32) -> Result<(), ()> {
         for _ in 0..timeout / 10 {
-            if let Some(c) = self.read_reg(Register::Status) {
+            if let Ok(c) = self.read_reg(Register::Status) {
                 if (c & mask as u8) != 0 {
                     return Ok(());
                 }
@@ -194,7 +239,7 @@ impl Barometer {
     /// Wait for oneshot bit to be clear
     fn wait_for_oneshot(&mut self, timeout: u32) -> Result<(), ()> {
         for _ in 0..=timeout / 10 {
-            if let Some(c) = self.read_reg(Register::ControlReg1) {
+            if let Ok(c) = self.read_reg(Register::ControlReg1) {
                 if (c & (ControlOneMasks::OneShot as u8)) == 0 {
                     return Ok(());
                 }
@@ -207,16 +252,16 @@ impl Barometer {
     }
 
     /// Read a byte from a register.
-    fn read_reg(&mut self, reg_addr: Register) -> Option<u8> {
+    fn read_reg(&mut self, reg_addr: Register) -> Result<u8, ()> {
         let mut recv_buf = [0, 0x1];
         if let Err(e) = self
             .i2c
             .write_read(I2CAddress, &[reg_addr as u8], &mut recv_buf)
         {
             sprintln! {"Error reading register {:?}: {:?}", reg_addr, e};
-            return None;
+            return Err(());
         }
-        Some(recv_buf[0])
+        Ok(recv_buf[0])
     }
 
     /// Write a byte to a register.

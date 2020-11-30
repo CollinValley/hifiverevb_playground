@@ -57,7 +57,6 @@ fn main() -> ! {
             console.handle_character(c);
         }
         */
-
         match barometer.get_pressure() {
             Ok(pressure) => {
                 sprintln! {"Got pressure value: {}Pa ", pressure };
@@ -70,6 +69,13 @@ fn main() -> ! {
             }
             Err(_) => sprintln!("Error getting altitude value"),
         };
-        Delay.delay_ms(2000u32);
+        /*
+        match barometer.get_temperature() {
+            Ok(temp) => {
+                sprintln! {"Got temperature value: {}C ", temp };
+            }
+            Err(_) => sprintln!("Error getting temperature value"),
+        };
+        */
     }
 }
