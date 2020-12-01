@@ -3,11 +3,9 @@
 
 extern crate panic_halt;
 
-mod barometer;
 mod console;
 mod mpl311a2;
 
-use hifive1::hal::delay::Delay;
 use hifive1::hal::i2c::{I2c, Speed};
 use hifive1::hal::prelude::*;
 use hifive1::hal::DeviceResources;
@@ -42,12 +40,13 @@ fn main() -> ! {
 
     // Create a new console.
     let mut console = console::Console::new();
-    let mut barometer = barometer::Barometer::new(barometer::Mode::Poll, i2c);
+    let mut barometer = mpl311a2::Mpl311a2::new(
+        mpl311a2::Mode::Barometer,
+        mpl311a2::Oversample::Oversample128,
+        i2c,
+        0x60,
+    ).unwrap();
 
-    if let Err(_) = barometer.initialize() {
-        sprintln!("Error starting barometer");
-        loop {}
-    }
     sprintln!("Barometer started");
 
     loop {
@@ -57,25 +56,12 @@ fn main() -> ! {
             console.handle_character(c);
         }
         */
-        match barometer.get_pressure() {
-            Ok(pressure) => {
-                sprintln! {"Got pressure value: {}Pa ", pressure };
+
+        match barometer.get_data() {
+            Ok(data) => {
+                sprintln! {"Got data: {:?}, Temperature {} ", data.pressure, data.temperature};
             }
-            Err(_) => sprintln!("Error getting pressure value"),
+            Err(_) => sprintln!("Error getting data"),
         };
-        match barometer.get_altitude() {
-            Ok(altitude) => {
-                sprintln! {"Got altitude value: {}m ", altitude };
-            }
-            Err(_) => sprintln!("Error getting altitude value"),
-        };
-        /*
-        match barometer.get_temperature() {
-            Ok(temp) => {
-                sprintln! {"Got temperature value: {}C ", temp };
-            }
-            Err(_) => sprintln!("Error getting temperature value"),
-        };
-        */
     }
 }
